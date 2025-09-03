@@ -19,10 +19,28 @@ Structure
 - requirements.txt
 - .env (not committed)
 
+
 Quick start
 1) Create .env with MongoDB connection string and optional overrides
-2) Install deps
-3) Run the job
+2) Install dependencies:
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+How to execute jobs
+
+- To fetch and upsert latest AMFI NAV data:
+  ```bash
+  python -m amfi_job.job
+  ```
+
+- To print a category/date value table from the database:
+  ```bash
+  python -m amfi_job.report_table
+  ```
+
 
 Environment variables
 - MONGODB_URI: mongodb connection string (mongodb+srv:// or mongodb://)
