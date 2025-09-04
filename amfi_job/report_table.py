@@ -1,5 +1,6 @@
 from __future__ import annotations
 import pandas as pd
+from pathlib import Path
 from .config import Config
 from .db import DB
 
@@ -17,39 +18,61 @@ def fetch_table():
         return
     df = pd.DataFrame(docs)
     # Pivot: rows=category_name, cols=Date, values=value
+    # Build numeric pivot table
     table = df.pivot_table(index="category_name", columns="Date", values="value", aggfunc="sum", fill_value=0)
     # Sort columns (dates) descending
     table = table.reindex(sorted(table.columns, reverse=True), axis=1)
-    # Compute change between latest two dates
-    date_cols = list(table.columns)
+
+    # Keep a numeric copy for sorting and CSV export
+    numeric = table.copy()
+    # Ensure integer type for date columns
+    if len(numeric.columns) > 0:
+        numeric[numeric.columns] = numeric[numeric.columns].astype(int)
+
+    # Compute change between latest two dates (numeric)
+    date_cols = list(numeric.columns)
     if len(date_cols) >= 2:
         latest, prev = date_cols[0], date_cols[1]
-        # Compute numeric change (int, not formatted)
-        table["Change"] = table[latest].fillna(0).astype(int) - table[prev].fillna(0).astype(int)
+        numeric["Change"] = numeric[latest].fillna(0).astype(int) - numeric[prev].fillna(0).astype(int)
     else:
-        table["Change"] = ""
+        latest = None
+        numeric["Change"] = 0
 
-    # Move 'Change' to the first column
-    cols = ["Change"] + [c for c in table.columns if c != "Change"]
-    table = table[cols]
+    # Move 'Change' to the first column (numeric)
+    cols = ["Change"] + [c for c in numeric.columns if c != "Change"]
+    numeric = numeric[cols]
 
-    # Sort by latest date (descending)
-    if len(date_cols) >= 1:
-        table = table.sort_values(by=latest, ascending=False)
+    # Sort by latest date (descending) using numeric values
+    if latest is not None:
+        numeric = numeric.sort_values(by=latest, ascending=False)
 
-    # Format numbers with thousands separator (except for index)
-    for col in table.columns:
-        if col != "Change":
-            table[col] = table[col].map(lambda x: f"{int(x):,}" if pd.notnull(x) and x != "" else "")
-        elif col == "Change":
-            table[col] = table[col].map(lambda x: f"{int(x):,}" if isinstance(x, (int, float)) and pd.notnull(x) else "")
+    # Append TOTAL row at bottom
+    total_row = numeric.drop(columns=["Change"]).sum(axis=0)
+    if latest is not None:
+        total_change = int(numeric[latest].sum() - numeric[prev].sum())
+    else:
+        total_change = int(0)
+    total_series = pd.Series({"Change": total_change}, name="TOTAL")
+    total_series = pd.concat([total_series, total_row])
+    numeric_with_total = pd.concat([numeric, total_series.to_frame().T])
 
-    # Try to use tabulate for pretty print
+    # Save numeric CSV to data folder (overwrite)
+    data_dir = (Path(__file__).resolve().parent.parent / "data")
+    data_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = data_dir / "report_table.csv"
+    numeric_with_total.to_csv(csv_path, index=True, index_label="category_name")
+
+    # Build display table from numeric_with_total with thousands separators
+    display = numeric_with_total.copy()
+    for col in display.columns:
+        display[col] = display[col].map(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
+
+    # Pretty print
     try:
         from tabulate import tabulate
-        print(tabulate(table, headers="keys", tablefmt="fancy_grid", showindex=True, numalign="right", stralign="left"))
+        print(tabulate(display, headers="keys", tablefmt="fancy_grid", showindex=True, numalign="right", stralign="left"))
     except ImportError:
-        print(table.to_string())
+        print(display.to_string())
 
 if __name__ == "__main__":
     fetch_table()
