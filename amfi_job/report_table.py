@@ -23,6 +23,12 @@ def fetch_table():
     # Sort columns (dates) descending
     table = table.reindex(sorted(table.columns, reverse=True), axis=1)
 
+    # if any value is zero, copy from the next (more recent) date
+    for i in range(len(table.columns) - 2, -1, -1):
+        col = table.columns[i]
+        next_col = table.columns[i + 1]
+        table[col] = table[col].where(table[col] != 0, table[next_col])
+
     # Keep a numeric copy for sorting and CSV export
     numeric = table.copy()
     # Ensure integer type for date columns
