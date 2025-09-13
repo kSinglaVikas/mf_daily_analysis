@@ -8,18 +8,16 @@ def fetch_table():
     cfg = Config.from_env()
     db = DB(cfg)
     coll = db.db_mutual["daily_movement"]
-    # Get the latest 7 unique dates
-    dates = list(coll.distinct("Date"))
-    dates = sorted([d for d in dates if d is not None], reverse=True)[:7]
-    # Query all docs for these dates
-    docs = list(coll.find({"Date": {"$in": dates}}, {"_id": 0, "category_name": 1, "Date": 1, "value": 1}))
+    # Get date for last 9 days with data
+    min_date = pd.Timestamp.now() - pd.Timedelta(days=9)
+    # Get the latest 7 unique dates (from nested Date)
+    docs = list(coll.find({"Date": {"$gte": min_date}}, {"_id": 0, "Scheme Name": 1, "Date": 1, "value": 1}).sort("Date", -1))
     if not docs:
         print("No data found.")
         return
     df = pd.DataFrame(docs)
-    # Pivot: rows=category_name, cols=Date, values=value
-    # Build numeric pivot table
-    table = df.pivot_table(index="category_name", columns="Date", values="value", aggfunc="sum", fill_value=0)
+    # Pivot: rows=Scheme Name, cols=Date, values=value
+    table = df.pivot_table(index="Scheme Name", columns="Date", values="value", aggfunc="sum", fill_value=0)
     # Sort columns (dates) descending
     table = table.reindex(sorted(table.columns, reverse=True), axis=1)
 
@@ -66,7 +64,7 @@ def fetch_table():
     data_dir = (Path(__file__).resolve().parent.parent / "data")
     data_dir.mkdir(parents=True, exist_ok=True)
     csv_path = data_dir / "report_table.csv"
-    numeric_with_total.to_csv(csv_path, index=True, index_label="category_name")
+    numeric_with_total.to_csv(csv_path, index=True, index_label="Scheme Name")
 
     # Build display table from numeric_with_total with thousands separators
     display = numeric_with_total.copy()

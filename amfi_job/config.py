@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -5,7 +6,15 @@ from dotenv import load_dotenv
 # Load .env if present at repo root
 load_dotenv()
 
-DEFAULT_AMFI_URL = "https://www.amfiindia.com/spages/NAVAll.txt"
+# Use previous day's date to ensure data availability
+# Change the date as needed or make it dynamic
+
+yesterday = datetime.now() - timedelta(days=1)
+yesterday_str = yesterday.strftime("%Y-%m-%d")
+
+print(f"Using AMFI data for date: {yesterday_str}")
+
+DEFAULT_AMFI_URL = f"https://www.amfiindia.com/api/download-nav-history?strMFID=all&schemeTypeDesc=all&FromDate={yesterday_str}&ToDate={yesterday_str}"
 
 @dataclass(frozen=True)
 class Config:

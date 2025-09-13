@@ -5,46 +5,32 @@ from typing import List, Dict, Any
 
 def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, Any]]) -> pd.DataFrame:
     act_df = pd.DataFrame(active_schemes)
-    # If scheme_code missing in active, try categoryCode as fallback
-    # Always create 'Scheme Code' and 'Date' columns for MongoDB compatibility
-    if "scheme_code" not in act_df.columns and "categoryCode" in act_df.columns:
-        act_df["scheme_code"] = act_df["categoryCode"].astype(str)
-    if "scheme_code" in nav_df.columns:
-        nav_df["scheme_code"] = nav_df["scheme_code"].astype(str).str.strip()
-    if "scheme_code" in act_df.columns:
-        act_df["scheme_code"] = act_df["scheme_code"].astype(str).str.strip()
 
     merged = pd.merge(
         nav_df,
         act_df,
-        on="scheme_code",
+        left_on="scheme_code",
+        right_on="categoryCode",
         how="inner",
         suffixes=("", "_active"),
     )
 
-    # Map categoryCode/categoryName to output
-    if "categoryCode" in merged.columns:
-        merged["category_code"] = merged["categoryCode"]
-    if "categoryName" in merged.columns:
-        merged["category_name"] = merged["categoryName"]
-    if "activeUnits" in merged.columns:
-        merged["active_units"] = merged["activeUnits"]
+    # keep cols scheme_code, scheme_name, nav_amt, nav_date, activeUnits
+    keep_cols = ["scheme_code", "scheme_name", "nav_amt", "nav_date", "activeUnits"]
+    merged = merged[keep_cols]
 
-    # Always create 'Scheme Code' and 'Date' for MongoDB index
-    merged["Scheme Code"] = merged["scheme_code"]
-    # Convert date string to datetime.datetime for 'Date' field (MongoDB compatible)
-    import datetime
-    if "date" in merged.columns:
-        merged["Date"] = pd.to_datetime(merged["date"], errors="coerce")
-        # Ensure all are datetime.datetime (not date)
-        merged["Date"] = merged["Date"].apply(lambda d: datetime.datetime.combine(d.date(), datetime.time()) if pd.notnull(d) else None)
-    else:
-        merged["Date"] = pd.NaT
+    # rename to 'Scheme Code' and 'Date'
+    merged.rename(columns={
+        "scheme_code": "Scheme Code",
+        "scheme_name": "Scheme Name",
+        "nav_amt": "nav",
+        "nav_date": "Date",
+        "activeUnits": "Active Units",
+    }, inplace=True)
 
     # Compute value = active_units * nav, ensure float or None (never NaN)
-    import numpy as np
     merged["value"] = None
-    if "active_units" in merged.columns and "nav" in merged.columns:
+    if "Active Units" in merged.columns and "nav" in merged.columns:
         def safe_float(val, row, col):
             try:
                 return float(str(val).replace(",", "").strip())
@@ -52,8 +38,8 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
                 print(f"[DEBUG] Could not convert {col}='{val}' for row {row.name}: {e}")
                 return None
         def rounded_value(row):
-            if pd.notnull(row["active_units"]) and pd.notnull(row["nav"]):
-                au = safe_float(row["active_units"], row, "active_units")
+            if pd.notnull(row["Active Units"]) and pd.notnull(row["nav"]):
+                au = safe_float(row["Active Units"], row, "Active Units")
                 nv = safe_float(row["nav"], row, "nav")
                 if au is not None and nv is not None:
                     return int(round(au * nv))
@@ -63,19 +49,15 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
         nan_mask = merged["value"].isna()
         if nan_mask.any():
             print("[DEBUG] Rows with NaN/None value after conversion:")
-            debug_df = merged.loc[nan_mask, [c for c in ["Scheme Code", "scheme_code", "scheme_name", "active_units", "nav"] if c in merged.columns]]
+            debug_df = merged.loc[nan_mask, [c for c in [ "Scheme Code", "Scheme Name", "Active Units", "nav"] if c in merged.columns]]
             print(debug_df.to_string(index=False))
 
     preferred_cols = [
         "Scheme Code",
-        "scheme_code",
-        "scheme_name",
+        "Scheme Name",
         "nav",
         "Date",
-        "date",
-        "category_code",
-        "category_name",
-        "active_units",
+        "Active Units",
         "value",
     ]
     preferred_cols = [c for c in preferred_cols if c in merged.columns]
@@ -88,14 +70,28 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
 
 
 def to_daily_movement_docs(df: pd.DataFrame) -> List[Dict[str, Any]]:
+
     records = df.to_dict(orient="records")
     # Ensure types and field names for MongoDB
+    import pandas as pd
+    import datetime
     for r in records:
         if isinstance(r.get("nav"), str):
             try:
                 r["nav"] = float(r["nav"].replace(",", ""))
             except Exception:
                 r["nav"] = None
+        # Ensure 'Date' is a valid datetime
+        d = r.get("Date")
+        if pd.isna(d):
+            r["Date"] = None
+        elif not isinstance(d, datetime.datetime) and hasattr(d, 'to_pydatetime'):
+            try:
+                r["Date"] = d.to_pydatetime()
+            except Exception:
+                r["Date"] = None
+        elif not isinstance(d, datetime.datetime):
+            r["Date"] = None
         # Remove lowercase 'scheme_code' and 'date' to avoid confusion
         if "scheme_code" in r:
             del r["scheme_code"]

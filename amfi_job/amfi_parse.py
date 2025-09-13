@@ -1,62 +1,41 @@
 from __future__ import annotations
 import io
 import pandas as pd
-from typing import Tuple
-
-# AMFI NAVAll.txt is pipe-delimited with headers similar to:
-# Scheme Code;ISIN Div Payout/ISIN Growth;ISIN Div Reinvestment;Scheme Name;Net Asset Value;Date
-# Real file uses ';' or ',' historically; latest uses ';' or '|' depending on source mirror.
-# We'll detect delimiter automatically using pandas.read_csv with python engine and sep=None.
-
-EXPECTED_COLUMNS = [
-    "Scheme Code",
-    "ISIN Div Payout/ ISIN Growth",
-    "ISIN Div Reinvestment",
-    "Scheme Name",
-    "Net Asset Value",
-    "Date",
-]
 
 
 def parse_nav_text(text: str) -> pd.DataFrame:
-    buf = io.StringIO(text)
-    df = pd.read_csv(
-        buf,
-        sep=None,  # auto-detect
-        engine="python",
-        dtype=str,
-        na_filter=False,
-        comment="#",
-    )
+
+    # Accepts bytes (Excel file content)
+    if isinstance(text, bytes):
+        buf = io.BytesIO(text)
+        df = pd.read_excel(buf, dtype=str)
+    else:
+        # fallback for text/csv
+        buf = io.StringIO(text)
+        df = pd.read_csv(buf, sep=None, engine="python", dtype=str, na_filter=False, comment="#")
+
     # Normalize column names to a canonical snake_case
     cols = {c: c.strip() for c in df.columns}
     df.rename(columns=cols, inplace=True)
 
+    # New Excel columns
     rename_map = {
-        "Scheme Code": "scheme_code",
-        "ISIN Div Payout/ ISIN Growth": "isin_payout_or_growth",
-        "ISIN Div Reinvestment": "isin_reinvestment",
-        "Scheme Name": "scheme_name",
-        "Net Asset Value": "nav",
-        "Date": "date",
+        "MF_Id": "mf_id",
+        "MF_Name": "mf_name",
+        "SchemeType_id": "scheme_type_id",
+        "SchemeType_Desc": "scheme_type_desc",
+        "SchemeCat_Id": "scheme_cat_id",
+        "SchemeCat_Desc": "scheme_cat_desc",
+        "Scheme_ID": "scheme_id",
+        "Scheme_Name": "scheme_name",
+        "SD_Id": "scheme_code",
+        "NAV_Name": "nav_name",
+        "hNAV_Date": "nav_date",
+        "hNAV_Amt": "nav_amt",
+        "ISIN_RI": "isin_ri",
+        "ISIN_PO": "isin_po",
     }
 
-    # Be tolerant to variants like 'Net Asset Value (Rs.)', 'NAV', etc.
-    for k in list(rename_map.keys()):
-        if k not in df.columns:
-            # Try alternative headers
-            alternatives = {
-                "Net Asset Value": ["Net Asset Value (Rs.)", "NAV", "Net Asset Value (Rs)"],
-                "Scheme Code": ["SchemeCode", "Code"],
-                "Scheme Name": ["SchemeName", "Name"],
-                "Date": ["NAV Date", "navDate", "NAVDate"],
-            }.get(k, [])
-            for alt in alternatives:
-                if alt in df.columns:
-                    df.rename(columns={alt: k}, inplace=True)
-                    break
-
-    # Apply final canonical names where available
     for src, dst in rename_map.items():
         if src in df.columns:
             df.rename(columns={src: dst}, inplace=True)
@@ -66,21 +45,26 @@ def parse_nav_text(text: str) -> pd.DataFrame:
         if df[c].dtype == object:
             df[c] = df[c].astype(str).str.strip()
 
-    # Convert nav to float where possible
-    if "nav" in df.columns:
-        df["nav"] = pd.to_numeric(df["nav"].str.replace(",", "", regex=False), errors="coerce")
 
-    # Parse date to yyyy-mm-dd string
-    if "date" in df.columns:
-        df["date"] = pd.to_datetime(df["date"], errors="coerce", dayfirst=True).dt.strftime("%Y-%m-%d")
+    # Convert nav_amt to float where possible
+    if "nav_amt" in df.columns:
+        df["nav_amt"] = pd.to_numeric(df["nav_amt"].str.replace(",", "", regex=False), errors="coerce")
 
-    # Drop rows without scheme_code or nav
+    # Convert scheme_code to int where possible
     if "scheme_code" in df.columns:
-        df = df[df["scheme_code"].notna() & (df["scheme_code"].astype(str) != "")]
+        df["scheme_code"] = pd.to_numeric(df["scheme_code"], errors="coerce").astype('Int64')
+
+    # Parse nav_date to date format from yyyy-mm-dd
+    if "nav_date" in df.columns:
+        df["nav_date"] = pd.to_datetime(df["nav_date"], errors="coerce", format="%Y-%m-%d")
+
+    # Drop rows without scheme_id or nav_amt
+    if "scheme_id" in df.columns:
+        df = df[df["scheme_id"].notna() & (df["scheme_id"].astype(str) != "")]
 
     return df
 
 
 def minimal_nav(df: pd.DataFrame) -> pd.DataFrame:
-    keep = [c for c in ["scheme_code", "scheme_name", "nav", "date"] if c in df.columns]
+    keep = [c for c in ["scheme_code", "scheme_name", "nav_amt", "nav_date"] if c in df.columns]
     return df[keep].copy()
