@@ -71,6 +71,9 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
 
 def to_daily_movement_docs(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
+    print("[DEBUG] Converting DataFrame to daily movement documents")
+    # Print first few rows for debugging
+    print(df.head(1).to_string(index=False))
     records = df.to_dict(orient="records")
     # Ensure types and field names for MongoDB
     import pandas as pd
@@ -85,13 +88,16 @@ def to_daily_movement_docs(df: pd.DataFrame) -> List[Dict[str, Any]]:
         d = r.get("Date")
         if pd.isna(d):
             r["Date"] = None
+            print(f"[DEBUG] 'Date' is NaN, setting to None for record: {r}")
         elif not isinstance(d, datetime.datetime) and hasattr(d, 'to_pydatetime'):
             try:
                 r["Date"] = d.to_pydatetime()
             except Exception:
                 r["Date"] = None
+                print(f"[DEBUG] Could not convert 'Date'='{d}' for record: {r}")
         elif not isinstance(d, datetime.datetime):
             r["Date"] = None
+            print(f"[DEBUG] 'Date' is not datetime, setting to None for record: {r}")
         # Remove lowercase 'scheme_code' and 'date' to avoid confusion
         if "scheme_code" in r:
             del r["scheme_code"]

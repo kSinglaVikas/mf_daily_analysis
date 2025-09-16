@@ -12,5 +12,5 @@ def fetch_nav_text(cfg: Config):
             return resp.content  # Return bytes for Excel file
         except requests.RequestException as e:
             print(f"[ERROR] Attempt {attempt + 1} failed: {e}")
-            sleep(120)  # Wait for 2 minutes before retrying
+            sleep(60)  # Wait for 1 minute before retrying
     raise RuntimeError("Failed to fetch NAV text after 3 attempts")

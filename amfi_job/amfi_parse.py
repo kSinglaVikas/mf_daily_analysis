@@ -30,8 +30,8 @@ def parse_nav_text(text: str) -> pd.DataFrame:
         "Scheme_Name": "scheme_name",
         "SD_Id": "scheme_code",
         "NAV_Name": "nav_name",
-        "hNAV_Date": "nav_date",
-        "hNAV_Amt": "nav_amt",
+        "NAV_Date": "nav_date",
+        "NAV_Amt": "nav_amt",
         "ISIN_RI": "isin_ri",
         "ISIN_PO": "isin_po",
     }
@@ -54,9 +54,21 @@ def parse_nav_text(text: str) -> pd.DataFrame:
     if "scheme_code" in df.columns:
         df["scheme_code"] = pd.to_numeric(df["scheme_code"], errors="coerce").astype('Int64')
 
-    # Parse nav_date to date format from yyyy-mm-dd
+    # Parse nav_date to date format, supporting m/d/yyyy and yyyy-mm-dd
     if "nav_date" in df.columns:
-        df["nav_date"] = pd.to_datetime(df["nav_date"], errors="coerce", format="%Y-%m-%d")
+        def parse_date(val):
+            import pandas as pd
+            try:
+                # Try m/d/yyyy
+                return pd.to_datetime(val, format="%m/%d/%Y", errors="raise")
+            except Exception:
+                try:
+                    # Try yyyy-mm-dd
+                    return pd.to_datetime(val, format="%Y-%m-%d", errors="raise")
+                except Exception:
+                    # Fallback to pandas default parser
+                    return pd.to_datetime(val, errors="coerce")
+        df["nav_date"] = df["nav_date"].apply(parse_date)
 
     # Drop rows without scheme_id or nav_amt
     if "scheme_id" in df.columns:
