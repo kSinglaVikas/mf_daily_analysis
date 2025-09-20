@@ -11,6 +11,8 @@ load_dotenv()
 
 yesterday = datetime.now() - timedelta(days=1)
 yesterday_str = yesterday.strftime("%Y-%m-%d")
+# Override for testing purposes
+#yesterday_str = "2025-09-18"
 
 print(f"Using AMFI data for date: {yesterday_str}")
 
