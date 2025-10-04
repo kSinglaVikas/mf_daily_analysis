@@ -68,6 +68,10 @@ def fetch_table():
 
     # Build display table from numeric_with_total with thousands separators
     display = numeric_with_total.copy()
+
+    # Restrict index length to 40 chars
+    display.index = display.index.map(lambda x: str(x) if len(str(x)) <= 40 else str(x)[:37] + "...")
+    
     for col in display.columns:
         display[col] = display[col].map(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
 
