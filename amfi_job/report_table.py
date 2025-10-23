@@ -66,14 +66,61 @@ def fetch_table():
     csv_path = data_dir / "report_table.csv"
     numeric_with_total.to_csv(csv_path, index=True, index_label="Scheme Name")
 
-    # Build display table from numeric_with_total with thousands separators
+    # Build display table from numeric_with_total with Indian number format (Lakhs, Crores)
     display = numeric_with_total.copy()
 
     # Restrict index length to 40 chars
     display.index = display.index.map(lambda x: str(x) if len(str(x)) <= 40 else str(x)[:37] + "...")
     
+    def format_indian_currency(value):
+        """Format number in Indian currency format with proper comma placement"""
+        if pd.isnull(value):
+            return ""
+        
+        value = int(value)
+        if value == 0:
+            return "0"
+        
+        # Handle negative values
+        is_negative = value < 0
+        value = abs(value)
+        
+        # Convert to string for manipulation
+        value_str = str(value)
+        
+        # Indian numbering system: x,xx,xx,xxx (group by 2 after first 3 digits from right)
+        if len(value_str) <= 3:
+            formatted = value_str
+        else:
+            # Split into groups: first group of 3, then groups of 2
+            result = []
+            remaining = value_str
+            
+            # Take last 3 digits
+            if len(remaining) >= 3:
+                result.append(remaining[-3:])
+                remaining = remaining[:-3]
+            else:
+                result.append(remaining)
+                remaining = ""
+            
+            # Take groups of 2 from right to left
+            while remaining:
+                if len(remaining) >= 2:
+                    result.append(remaining[-2:])
+                    remaining = remaining[:-2]
+                else:
+                    result.append(remaining)
+                    remaining = ""
+            
+            # Reverse and join with commas
+            result.reverse()
+            formatted = ",".join(result)
+        
+        return f"-{formatted}" if is_negative else formatted
+    
     for col in display.columns:
-        display[col] = display[col].map(lambda x: f"{int(x):,}" if pd.notnull(x) else "")
+        display[col] = display[col].map(format_indian_currency)
 
     # Pretty print
     try:
