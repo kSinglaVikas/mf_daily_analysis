@@ -68,6 +68,24 @@ def fetch_table():
 
     # Build display table from numeric_with_total with Indian number format (Lakhs, Crores)
     display = numeric_with_total.copy()
+    
+    # Format column headers to show only date (remove time)
+    new_columns = []
+    for col in display.columns:
+        if col == "Change":
+            new_columns.append(col)
+        else:
+            # Convert timestamp to date string
+            if hasattr(col, 'strftime'):
+                new_columns.append(col.strftime('%Y-%m-%d'))
+            else:
+                # Handle case where col might already be a string
+                col_str = str(col)
+                if ' ' in col_str:  # Remove time part if present
+                    new_columns.append(col_str.split(' ')[0])
+                else:
+                    new_columns.append(col_str)
+    display.columns = new_columns
 
     # Restrict index length to 40 chars
     display.index = display.index.map(lambda x: str(x) if len(str(x)) <= 40 else str(x)[:37] + "...")
@@ -125,7 +143,10 @@ def fetch_table():
     # Pretty print
     try:
         from tabulate import tabulate
-        print(tabulate(display, headers="keys", tablefmt="fancy_grid", showindex=True, numalign="right", stralign="left"))
+        # Set column alignment - left for scheme names, right for all values
+        colalign = ["left"] + ["right"] * len(display.columns)  # First column (index) left, rest right
+        print(tabulate(display, headers="keys", tablefmt="fancy_grid", showindex=True, 
+                      numalign="right", stralign="right", colalign=colalign))
     except ImportError:
         print(display.to_string())
 

@@ -120,7 +120,7 @@ def run_once(verbose: bool = True) -> Optional[dict]:
 
 if __name__ == "__main__":
     try:
-        res = run_once(verbose=True)
+        res = run_once(verbose=False)
         if res:
             print(res)
     except Exception as e:
