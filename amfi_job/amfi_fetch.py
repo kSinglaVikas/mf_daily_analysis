@@ -16,7 +16,7 @@ def fetch_nav_text(cfg: Config):
                 print(f"[INFO] No data available for this date (404 error). Skipping...")
                 raise DataNotAvailableError("No data available for this date")
             resp.raise_for_status()
-            return resp.content  # Return bytes for Excel file
+            return resp.text  # Return text content for TXT file
         except DataNotAvailableError:
             # Don't retry for 404 errors, just re-raise
             raise

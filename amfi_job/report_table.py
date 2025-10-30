@@ -16,7 +16,30 @@ def fetch_table():
         print("No data found.")
         return
     df = pd.DataFrame(docs)
-    # Pivot: rows=Scheme Name, cols=Date, values=value
+    
+    # Normalize scheme names before pivot to group similar schemes
+    def normalize_scheme_name(name):
+        """Normalize scheme names by removing everything after dash or parentheses"""
+        name = str(name).strip()
+        name = ' '.join(name.split())  # Clean whitespace
+        
+        # Remove everything after the first "(" (parentheses)
+        if '(' in name:
+            name = name.split('(')[0].strip()
+        
+        # Remove everything after the first " - " (space-dash-space)
+        if ' - ' in name:
+            name = name.split(' - ')[0].strip()
+        
+        # Remove everything after the first "-" (dash without spaces) 
+        if '-' in name:
+            name = name.split('-')[0].strip()
+        
+        return name
+    
+    df["Scheme Name"] = df["Scheme Name"].apply(normalize_scheme_name)
+    
+    # Pivot: rows=Scheme Name, cols=Date, values=value (sum aggregation will handle duplicates)
     table = df.pivot_table(index="Scheme Name", columns="Date", values="value", aggfunc="sum", fill_value=0)
     # Sort columns (dates) descending
     table = table.reindex(sorted(table.columns, reverse=True), axis=1)

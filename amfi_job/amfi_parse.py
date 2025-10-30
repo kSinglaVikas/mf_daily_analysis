@@ -4,22 +4,39 @@ import pandas as pd
 
 
 def parse_nav_text(text: str) -> pd.DataFrame:
-
-    # Accepts bytes (Excel file content)
-    if isinstance(text, bytes):
+    """Parse NAV text file from AMFI portal
+    
+    Args:
+        text: Text content from AMFI portal (semicolon-separated values)
+        
+    Returns:
+        DataFrame with normalized column names
+    """
+    
+    # Handle text content with semicolon separator
+    if isinstance(text, str):
+        buf = io.StringIO(text)
+        df = pd.read_csv(buf, sep=';', dtype=str, na_filter=False)
+    else:
+        # Fallback for bytes (shouldn't happen with new format)
         buf = io.BytesIO(text)
         df = pd.read_excel(buf, dtype=str)
-    else:
-        # fallback for text/csv
-        buf = io.StringIO(text)
-        df = pd.read_csv(buf, sep=None, engine="python", dtype=str, na_filter=False, comment="#")
 
     # Normalize column names to a canonical snake_case
     cols = {c: c.strip() for c in df.columns}
     df.rename(columns=cols, inplace=True)
 
-    # New Excel columns
+    # New text file columns mapping
     rename_map = {
+        "Scheme Code": "scheme_code",
+        "Scheme Name": "scheme_name",
+        "ISIN Div Payout/ISIN Growth": "isin_po",
+        "ISIN Div Reinvestment": "isin_ri", 
+        "Net Asset Value": "nav_amt",
+        "Repurchase Price": "repurchase_price",
+        "Sale Price": "sale_price",
+        "Date": "nav_date",
+        # Keep legacy mappings for backward compatibility
         "MF_Id": "mf_id",
         "MF_Name": "mf_name",
         "SchemeType_id": "scheme_type_id",
@@ -27,7 +44,6 @@ def parse_nav_text(text: str) -> pd.DataFrame:
         "SchemeCat_Id": "scheme_cat_id",
         "SchemeCat_Desc": "scheme_cat_desc",
         "Scheme_ID": "scheme_id",
-        "Scheme_Name": "scheme_name",
         "SD_Id": "scheme_code",
         "NAV_Name": "nav_name",
         "NAV_Date": "nav_date",
@@ -50,28 +66,50 @@ def parse_nav_text(text: str) -> pd.DataFrame:
     if "nav_amt" in df.columns:
         df["nav_amt"] = pd.to_numeric(df["nav_amt"].str.replace(",", "", regex=False), errors="coerce")
 
-    # Convert scheme_code to int where possible
+    # Convert scheme_code to int where possible, but keep as string if conversion fails
     if "scheme_code" in df.columns:
-        df["scheme_code"] = pd.to_numeric(df["scheme_code"], errors="coerce").astype('Int64')
+        # Try to convert to numeric, but keep original if it fails
+        numeric_codes = pd.to_numeric(df["scheme_code"], errors="coerce")
+        # If conversion is successful for all values, use Int64, otherwise keep as string
+        if not numeric_codes.isna().any():
+            df["scheme_code"] = numeric_codes.astype('Int64')
+        else:
+            # Keep as string but strip whitespace
+            df["scheme_code"] = df["scheme_code"].astype(str).str.strip()
 
-    # Parse nav_date to date format, supporting m/d/yyyy and yyyy-mm-dd
+    # Parse nav_date to date format, supporting multiple formats
     if "nav_date" in df.columns:
         def parse_date(val):
             import pandas as pd
             try:
-                # Try m/d/yyyy
-                return pd.to_datetime(val, format="%m/%d/%Y", errors="raise")
+                # Try DD-MMM-YYYY (new format from portal)
+                return pd.to_datetime(val, format="%d-%b-%Y", errors="raise")
             except Exception:
                 try:
-                    # Try yyyy-mm-dd
-                    return pd.to_datetime(val, format="%Y-%m-%d", errors="raise")
+                    # Try DD-MM-YYYY
+                    return pd.to_datetime(val, format="%d-%m-%Y", errors="raise")
                 except Exception:
-                    # Fallback to pandas default parser
-                    return pd.to_datetime(val, errors="coerce")
+                    try:
+                        # Try DD/MM/YYYY
+                        return pd.to_datetime(val, format="%d/%m/%Y", errors="raise")
+                    except Exception:
+                        try:
+                            # Try m/d/yyyy (legacy)
+                            return pd.to_datetime(val, format="%m/%d/%Y", errors="raise")
+                        except Exception:
+                            try:
+                                # Try yyyy-mm-dd (legacy)
+                                return pd.to_datetime(val, format="%Y-%m-%d", errors="raise")
+                            except Exception:
+                                # Fallback to pandas default parser
+                                return pd.to_datetime(val, errors="coerce")
         df["nav_date"] = df["nav_date"].apply(parse_date)
 
-    # Drop rows without scheme_id or nav_amt
-    if "scheme_id" in df.columns:
+    # Drop rows without scheme_code or nav_amt
+    if "scheme_code" in df.columns:
+        df = df[df["scheme_code"].notna() & (df["scheme_code"].astype(str) != "")]
+    elif "scheme_id" in df.columns:
+        # Fallback for legacy format
         df = df[df["scheme_id"].notna() & (df["scheme_id"].astype(str) != "")]
 
     return df

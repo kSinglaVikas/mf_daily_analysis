@@ -6,9 +6,34 @@ from dotenv import load_dotenv
 # Load .env if present at repo root
 load_dotenv()
 
+def convert_date_format(date_str: str) -> str:
+    """Convert date from YYYY-MM-DD to DD-MMM-YYYY format
+    
+    Args:
+        date_str: Date in YYYY-MM-DD format (e.g., "2025-10-28")
+    
+    Returns:
+        Date in DD-MMM-YYYY format (e.g., "28-Oct-2025")
+    """
+    try:
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        return date_obj.strftime("%d-%b-%Y")
+    except ValueError:
+        # If already in DD-MMM-YYYY format, return as is
+        return date_str
+
 def get_amfi_url_for_date(date_str: str) -> str:
-    """Generate AMFI URL for a specific date"""
-    return f"https://www.amfiindia.com/api/download-nav-history?strMFID=all&schemeTypeDesc=all&FromDate={date_str}&ToDate={date_str}"
+    """Generate AMFI URL for a specific date
+    
+    Args:
+        date_str: Date in YYYY-MM-DD format (e.g., "2025-10-28")
+    
+    Returns:
+        URL string for AMFI portal download
+    """
+    # Convert to DD-MMM-YYYY format required by the portal
+    amfi_date_str = convert_date_format(date_str)
+    return f"https://portal.amfiindia.com/DownloadNAVHistoryReport_Po.aspx?frmdt={amfi_date_str}"
 
 @dataclass(frozen=True)
 class Config:

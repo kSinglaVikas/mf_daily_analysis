@@ -6,9 +6,15 @@ from typing import List, Dict, Any
 def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, Any]]) -> pd.DataFrame:
     act_df = pd.DataFrame(active_schemes)
 
+    # Ensure consistent data types for merge keys
+    # Convert both scheme_code and categoryCode to integers for consistent merging
+    nav_df_copy = nav_df.copy()
+    nav_df_copy["scheme_code"] = pd.to_numeric(nav_df_copy["scheme_code"], errors="coerce").astype('Int64')
+    act_df["categoryCode"] = pd.to_numeric(act_df["categoryCode"], errors="coerce").astype('Int64')
+
     merged = pd.merge(
-        nav_df,
-        act_df,
+        nav_df_copy,
+        act_df,  
         left_on="scheme_code",
         right_on="categoryCode",
         how="inner",
