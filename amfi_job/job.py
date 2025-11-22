@@ -116,6 +116,12 @@ def run_once(verbose: bool = True) -> Optional[dict]:
     
     total_results = _process_date_range(start_date, yesterday, verbose)
     
+    if verbose:
+        print("\n--- Generating weekly summary ---")
+    db.generate_weekly_summary()
+    if verbose:
+        print("Weekly summary generated successfully")
+    
     return {
         "processed_dates": len(total_results),
         "results": total_results

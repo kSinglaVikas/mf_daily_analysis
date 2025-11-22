@@ -45,3 +45,82 @@ class DB:
             result = coll.bulk_write(ops, ordered=False)
             return result.bulk_api_result
         return {"nUpserted": 0, "nModified": 0}
+
+    def generate_weekly_summary(self):
+        """Generate weekly NAV summary for current week"""
+        coll = self.db_mutual["daily_movement"]
+        pipeline = [
+            {
+                "$match": {
+                    "$expr": {
+                        "$and": [
+                            {"$eq": [{"$isoWeekYear": "$Date"}, {"$isoWeekYear": datetime.now()}]},
+                            {"$eq": [{"$isoWeek": "$Date"}, {"$isoWeek": datetime.now()}]}
+                        ]
+                    }
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "year": "$Year",
+                        "week": "$Week of Year",
+                        "schemeCode": "$Scheme Code",
+                        "schemeName": "$Scheme Name"
+                    },
+                    "openDate": {"$min": "$Date"},
+                    "closeDate": {"$max": "$Date"},
+                    "high": {"$max": "$nav"},
+                    "low": {"$min": "$nav"},
+                    "docs": {"$push": "$$ROOT"}
+                }
+            },
+            {
+                "$addFields": {
+                    "openDoc": {
+                        "$first": {
+                            "$filter": {
+                                "input": "$docs",
+                                "as": "doc",
+                                "cond": {"$eq": ["$$doc.Date", "$openDate"]}
+                            }
+                        }
+                    },
+                    "closeDoc": {
+                        "$first": {
+                            "$filter": {
+                                "input": "$docs",
+                                "as": "doc",
+                                "cond": {"$eq": ["$$doc.Date", "$closeDate"]}
+                            }
+                        }
+                    }
+                }
+            },
+            {
+                "$project": {
+                    "Year": "$_id.year",
+                    "WeekOfYear": "$_id.week",
+                    "SchemeCode": "$_id.schemeCode",
+                    "SchemeName": "$_id.schemeName",
+                    "Open": "$openDoc.nav",
+                    "High": "$high",
+                    "Low": "$low",
+                    "Close": "$closeDoc.nav",
+                    "_id": 0
+                }
+            },
+            {
+                "$merge": {
+                    "into": {
+                        "db": "reporting",
+                        "coll": "weekly_nav_summary"
+                    },
+                    "on": ["Year", "WeekOfYear", "SchemeCode"],
+                    "whenMatched": "replace",
+                    "whenNotMatched": "insert"
+                }
+            }
+        ]
+        return list(coll.aggregate(pipeline))
+
