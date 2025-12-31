@@ -84,7 +84,7 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
     merged.drop_duplicates(subset=["Scheme Code", "Date"], keep="last", inplace=True)
 
     merged["Week of Year"] = merged["Date"].dt.isocalendar().week
-    merged["Year"] = merged["Date"].dt.year
+    merged["Year"] = merged["Date"].dt.isocalendar().year
 
     return merged
 
