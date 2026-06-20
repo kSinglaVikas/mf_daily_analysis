@@ -3,6 +3,36 @@ import io
 import pandas as pd
 
 
+def _normalize_amfi_text(text: str) -> str:
+    """Reassemble wrapped AMFI rows into one logical line per record."""
+    lines = text.splitlines()
+    normalized_lines = []
+    buffer = []
+    expected_separators = 7
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        if not buffer:
+            if stripped.count(";") == 0:
+                normalized_lines.append(stripped)
+                continue
+            buffer.append(stripped)
+        else:
+            buffer.append(stripped)
+
+        if ";".join(buffer).count(";") >= expected_separators:
+            normalized_lines.append("".join(buffer))
+            buffer = []
+
+    if buffer:
+        normalized_lines.append("".join(buffer))
+
+    return "\n".join(normalized_lines)
+
+
 def parse_nav_text(text: str) -> pd.DataFrame:
     """Parse NAV text file from AMFI portal
     
@@ -15,7 +45,7 @@ def parse_nav_text(text: str) -> pd.DataFrame:
     
     # Handle text content with semicolon separator
     if isinstance(text, str):
-        buf = io.StringIO(text)
+        buf = io.StringIO(_normalize_amfi_text(text))
         df = pd.read_csv(buf, sep=';', dtype=str, na_filter=False)
     else:
         # Fallback for bytes (shouldn't happen with new format)
