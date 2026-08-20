@@ -11,12 +11,12 @@ def fetch_table():
     # Get date for last 10 days with data
     min_date = pd.Timestamp.now() - pd.Timedelta(days=10)
     # Get the latest 7 unique dates (from nested Date)
-    docs = list(coll.find({"Date": {"$gte": min_date}}, {"_id": 0, "Scheme Name": 1, "Date": 1, "value": 1}).sort("Date", -1))
+    docs = list(coll.find({"Date": {"$gte": min_date}}, {"_id": 0, "Scheme Code": 1, "Scheme Name": 1, "Date": 1, "value": 1}).sort("Date", -1))
     if not docs:
         print("No data found.")
         return
     df = pd.DataFrame(docs)
-    
+
     # Normalize scheme names before pivot to group similar schemes
     def normalize_scheme_name(name):
         """Normalize scheme names by removing everything after dash or parentheses"""
@@ -36,11 +36,14 @@ def fetch_table():
             name = name.split('-')[0].strip()
         
         return name
-    
+
     df["Scheme Name"] = df["Scheme Name"].apply(normalize_scheme_name)
-    
-    # Pivot: rows=Scheme Name, cols=Date, values=value (sum aggregation will handle duplicates)
-    table = df.pivot_table(index="Scheme Name", columns="Date", values="value", aggfunc="sum", fill_value=0)
+
+    # Map each Scheme Code to the first Scheme Name encountered (docs sorted by Date desc, so this is the latest)
+    scheme_names = df.groupby("Scheme Code")["Scheme Name"].first()
+
+    # Pivot: rows=Scheme Code, cols=Date, values=value (sum aggregation will handle duplicates)
+    table = df.pivot_table(index="Scheme Code", columns="Date", values="value", aggfunc="sum", fill_value=0)
     # Sort columns (dates) descending
     table = table.reindex(sorted(table.columns, reverse=True), axis=1)
 
@@ -82,6 +85,10 @@ def fetch_table():
     total_series = pd.Series({"Change": total_change}, name="TOTAL")
     total_series = pd.concat([total_series, total_row])
     numeric_with_total = pd.concat([numeric, total_series.to_frame().T])
+
+    # Replace Scheme Code index with the corresponding Scheme Name (TOTAL row keeps its label)
+    numeric_with_total.index = [scheme_names.get(idx, idx) if idx != "TOTAL" else idx for idx in numeric_with_total.index]
+    numeric_with_total.index.name = "Scheme Name"
 
     # Save numeric CSV to data folder (overwrite)
     data_dir = (Path(__file__).resolve().parent.parent / "data")
