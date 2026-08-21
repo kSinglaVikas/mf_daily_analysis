@@ -58,6 +58,12 @@ def merge_nav_with_active(nav_df: pd.DataFrame, active_schemes: List[Dict[str, A
     )
 
     keep_cols = ["scheme_code", "scheme_name", "nav_amt", "nav_date", "activeUnits"]
+    missing_cols = [c for c in keep_cols if c not in merged.columns]
+    if missing_cols:
+        raise ValueError(
+            f"NAV data is missing expected column(s) {missing_cols}; "
+            "the AMFI NAV file for this date may be malformed or use an unrecognized header format."
+        )
     merged = merged[keep_cols]
 
     merged.rename(columns={

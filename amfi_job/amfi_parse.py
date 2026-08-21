@@ -60,6 +60,7 @@ def parse_nav_text(text: str) -> pd.DataFrame:
     rename_map = {
         "Scheme Code": "scheme_code",
         "Scheme Name": "scheme_name",
+        "NAV Name": "scheme_name",
         "ISIN Div Payout/ISIN Growth": "isin_po",
         "ISIN Div Reinvestment": "isin_ri", 
         "Net Asset Value": "nav_amt",
