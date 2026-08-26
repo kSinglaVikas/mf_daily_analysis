@@ -1,5 +1,3 @@
-source .venv/bin/activate
+uv run python -m amfi_job.job
 
-python -m amfi_job.job
-
-python -m amfi_job.report_table
+uv run python -m amfi_job.report_table

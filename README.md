@@ -16,29 +16,32 @@ Structure
   - merge.py
   - job.py
   - utils.py
-- requirements.txt
+- pyproject.toml
+- uv.lock
 - .env (not committed)
 
 
 Quick start
 1) Create .env with MongoDB connection string and optional overrides
-2) Install dependencies:
+2) Install `uv` if it is not already installed:
+  ```bash
+  brew install uv
+  ```
+3) Create the environment and install the locked dependencies:
    ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   pip install -r requirements.txt
+  uv sync
    ```
 
 How to execute jobs
 
 - To fetch and upsert latest AMFI NAV data:
   ```bash
-  python -m amfi_job.job
+  uv run python -m amfi_job.job
   ```
 
 - To print a category/date value table from the database:
   ```bash
-  python -m amfi_job.report_table
+  uv run python -m amfi_job.report_table
   ```
 
 

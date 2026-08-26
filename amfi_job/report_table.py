@@ -9,7 +9,7 @@ def fetch_table():
     db = DB(cfg)
     coll = db.db_mutual["daily_movement"]
     # Get date for last 10 days with data
-    min_date = pd.Timestamp.now() - pd.Timedelta(days=10)
+    min_date = pd.Timestamp.now() - pd.Timedelta(10, unit="D")
     # Get the latest 7 unique dates (from nested Date)
     docs = list(coll.find({"Date": {"$gte": min_date}}, {"_id": 0, "Scheme Code": 1, "Scheme Name": 1, "Date": 1, "value": 1}).sort("Date", -1))
     if not docs:

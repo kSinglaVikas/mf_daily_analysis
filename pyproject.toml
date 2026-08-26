@@ -1,0 +1,16 @@
+[project]
+name = "daily-analysis"
+version = "0.1.0"
+description = "Fetch and analyze daily AMFI NAV data"
+requires-python = ">=3.10"
+dependencies = [
+    "openpyxl==3.1.5",
+    "pandas==2.2.2",
+    "pymongo==4.7.2",
+    "python-dotenv==1.0.1",
+    "requests==2.32.3",
+    "tabulate==0.9.0",
+]
+
+[tool.uv]
+package = false
