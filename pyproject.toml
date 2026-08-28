@@ -5,7 +5,7 @@ description = "Fetch and analyze daily AMFI NAV data"
 requires-python = ">=3.10"
 dependencies = [
     "openpyxl==3.1.5",
-    "pandas==2.2.2",
+    "pandas>=2.2.0",
     "pymongo==4.7.2",
     "python-dotenv==1.0.1",
     "requests==2.32.3",

@@ -90,7 +90,7 @@ def parse_nav_text(text: str) -> pd.DataFrame:
     # Trim spaces
     for c in df.columns:
         if df[c].dtype == object:
-            df[c] = df[c].astype(str).str.strip()
+            df.loc[:, c] = df[c].astype(str).str.strip()
 
 
     # Convert nav_amt to float where possible
