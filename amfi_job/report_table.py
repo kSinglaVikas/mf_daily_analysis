@@ -64,9 +64,11 @@ def fetch_table():
     if len(date_cols) >= 2:
         latest, prev = date_cols[0], date_cols[1]
         numeric["Change"] = numeric[latest].fillna(0).astype(int) - numeric[prev].fillna(0).astype(int)
+        change_percent = numeric["Change"].div(numeric[prev]).where(numeric[prev] != 0).mul(100)
     else:
         latest = None
         numeric["Change"] = 0
+        change_percent = pd.Series(index=numeric.index, dtype=float)
 
     # Move 'Change' to the first column (numeric)
     cols = ["Change"] + [c for c in numeric.columns if c != "Change"]
@@ -75,16 +77,24 @@ def fetch_table():
     # Sort by latest date (descending) using numeric values
     if latest is not None:
         numeric = numeric.sort_values(by=latest, ascending=False)
+    change_percent = change_percent.reindex(numeric.index)
 
     # Append TOTAL row at bottom
     total_row = numeric.drop(columns=["Change"]).sum(axis=0)
     if latest is not None:
         total_change = int(numeric[latest].sum() - numeric[prev].sum())
+        total_previous = numeric[prev].sum()
+        total_change_percent = (total_change / total_previous * 100) if total_previous != 0 else None
     else:
         total_change = int(0)
+        total_change_percent = None
     total_series = pd.Series({"Change": total_change}, name="TOTAL")
     total_series = pd.concat([total_series, total_row])
     numeric_with_total = pd.concat([numeric, total_series.to_frame().T])
+    change_percent = pd.concat([
+        change_percent,
+        pd.Series({"TOTAL": total_change_percent}),
+    ])
 
     # Replace Scheme Code index with the corresponding Scheme Name (TOTAL row keeps its label)
     numeric_with_total.index = [scheme_names.get(idx, idx) if idx != "TOTAL" else idx for idx in numeric_with_total.index]
@@ -168,7 +178,14 @@ def fetch_table():
         return f"-{formatted}" if is_negative else formatted
     
     for col in display.columns:
-        display[col] = display[col].map(format_indian_currency)
+        if col == "Change":
+            display[col] = [
+                f"{format_indian_currency(value)} ({percent:.2f}%)"
+                if pd.notnull(percent) else f"{format_indian_currency(value)} (N/A)"
+                for value, percent in zip(display[col], change_percent)
+            ]
+        else:
+            display[col] = display[col].map(format_indian_currency)
 
     # Pretty print
     try:
